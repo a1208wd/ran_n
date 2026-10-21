@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>人生是轨道，还是旷野？</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Ma Shan Zheng', 'KaiTi', '楷体', 'STKaiti', 'Microsoft YaHei', system-ui, sans-serif;
+      background: #000;
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .canvas {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      max-width: 1600px;
+      max-height: 1000px;
+      overflow: hidden;
+      background: #050608;
+    }
+
+    /* ========== 场景一：轨道世界 ========== */
+    .scene-track {
+      position: absolute;
+      inset: 0;
+      transition: opacity 1.5s ease;
+      z-index: 5;
+    }
+
+    .scene-track.fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .bg-layer {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 35%, #141a26 0%, #080b10 75%);
+      transition: background 0.3s ease;
+      z-index: 0;
+    }
+
+    /* ========== 连续轨道 ========== */
+    .track-stage {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 1100px;
+      height: 85%;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    .track-perspective {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      perspective: 800px;
+      perspective-origin: 50% 20%;
+    }
+
+    .rail {
+      position: absolute;
+      bottom: 0;
+      width: 50%;
+      height: 100%;
+      background: linear-gradient(to top, #5a5f6b 0%, #3a3f4a 25%, #232833 55%, #12161e 100%);
+      box-shadow: inset 0 0 20px rgba(180,190,210,0.1);
+    }
+
+    .rail.left {
+      left: 0;
+      clip-path: polygon(30% 100%, 42% 0%, 51% 0%, 50% 100%);
+      transform: rotateY(8deg) translateZ(-10px);
+      transform-origin: right bottom;
+    }
+
+    .rail.right {
+      right: 0;
+      clip-path: polygon(50% 100%, 49% 0%, 58% 0%, 70% 100%);
+      transform: rotateY(-8deg) translateZ(-10px);
+      transform-origin: left bottom;
+    }
+
+    .sleepers {
+      position: absolute;
+      inset: 0;
+      background-image: repeating-linear-gradient(
+        to top, transparent 0px, transparent 14px,
+        rgba(90, 95, 105, 0.55) 14px, rgba(90, 95, 105, 0.55) 19px,
+        transparent 19px, transparent 42px
+      );
+      clip-path: polygon(18% 100%, 42% 0%, 58% 0%, 82% 100%);
+      opacity: 0.7;
+      mix-blend-mode: screen;
+    }
+
+    .rail-highlight {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 2px;
+      height: 100%;
+      background: linear-gradient(to top, rgba(200,210,230,0.45) 0%, rgba(140,150,170,0.15) 40%, transparent 100%);
+      clip-path: polygon(50% 100%, 50% 0%, 100% 0%, 100% 100%);
+      filter: blur(1px);
+      opacity: 0.6;
+    }
+
+    /* 爆炸时的屏幕震动 */
+    @keyframes shake {
+      0%, 100% { transform: translate(0, 0); }
+      10% { transform: translate(-5px, -5px); }
+      20% { transform: translate(5px, 5px); }
+      30% { transform: translate(-8px, 4px); }
+      40% { transform: translate(8px, -4px); }
+      50% { transform: translate(-4px, 8px); }
+      60% { transform: translate(4px, -8px); }
+      70% { transform: translate(-2px, 2px); }
+      80% { transform: translate(2px, -2px); }
+      90% { transform: translate(0, 0); }
+    }
+
+    .canvas.shake {
+      animation: shake 0.6s cubic-bezier(.36,.07,.19,.97) both;
+    }
+
+    /* 爆炸瞬间闪白 */
+    .flash-overlay {
+      position: absolute;
+      inset: 0;
+      background: #fff;
+      opacity: 0;
+      z-index: 50;
+      pointer-events: none;
+    }
+
+    @keyframes flash {
+      0% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+
+    .flash-overlay.active {
+      animation: flash 0.5s ease-out forwards;
+    }
+
+    /* ========== 爆炸碎片层 ========== */
+    .debris-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 15;
+      pointer-events: none;
+      overflow: hidden;
+      perspective: 1000px;
+    }
+
+    /* 锋利的玻璃碎片 */
+    .glass-shard {
+      position: absolute;
+      /* 模拟玻璃质感：高光、暗部、边缘泛白 */
+      background: linear-gradient(135deg, 
+        rgba(255,255,255,1) 0%, 
+        rgba(200,220,240,0.7) 25%, 
+        rgba(100,110,130,0.8) 60%, 
+        rgba(255,255,255,0.9) 100%);
+      border: 1px solid rgba(255,255,255,0.9);
+      box-shadow: 
+        inset 0 0 12px rgba(255,255,255,0.8),
+        inset 0 0 3px rgba(0,0,0,0.6),
+        0 0 20px rgba(200,220,255,0.4);
+      will-change: transform, opacity;
+      transform-style: preserve-3d;
+    }
+
+    /* 伪元素：彩虹色差（Chromatic Aberration） */
+    .glass-shard::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, 
+        transparent 10%, 
+        rgba(255,50,50,0.6) 20%, 
+        rgba(255,255,50,0.6) 30%, 
+        rgba(50,255,50,0.6) 40%, 
+        rgba(50,100,255,0.6) 50%, 
+        rgba(200,50,255,0.6) 60%,
+        transparent 80%
+      );
+      mix-blend-mode: screen;
+      opacity: 0.9;
+    }
+
+    /* 飞散动画（带3D纵深效果） */
+    @keyframes shard-explode {
+      0% {
+        transform: translate3d(0, 0, 0) rotate3d(1, 1, 1, 0deg) scale(1);
+        opacity: 1;
+      }
+      10% {
+        opacity: 1;
+        transform: translate3d(calc(var(--tx) * 0.1), calc(var(--ty) * 0.1), calc(var(--tz) * 0.2)) rotate3d(1, 1, 1, calc(var(--rot) * 0.1)) scale(1.2);
+      }
+      100% {
+        transform: translate3d(var(--tx), var(--ty), var(--tz)) rotate3d(1, 1, 1, var(--rot)) scale(0.2);
+        opacity: 0;
+      }
+    }
+
+    .glass-shard.fly {
+      animation: shard-explode var(--duration) cubic-bezier(0.05, 0.9, 0.1, 1) forwards;
+      animation-delay: var(--delay);
+    }
+
+    /* 细小的玻璃粉尘 */
+    .dust-particle {
+      position: absolute;
+      background: #fff;
+      border-radius: 50%;
+      box-shadow: 0 0 6px #fff, 0 0 2px #aaccff;
+      will-change: transform, opacity;
+    }
+
+    @keyframes dust-explode {
+      0% { transform: translate3d(0,0,0) scale(1); opacity: 1; }
+      100% { transform: translate3d(var(--tx), var(--ty), var(--tz)) scale(0); opacity: 0; }
+    }
+    
+    .dust-particle.fly {
+      animation: dust-explode var(--duration) cubic-bezier(0.05, 0.9, 0.1, 1) forwards;
+      animation-delay: var(--delay);
+    }
+
+    /* ========== 卡牌 ========== */
+    .cards-field {
+      position: absolute;
+      inset: 0;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .note-card {
+      position: absolute;
+      width: 150px;
+      height: 150px;
+      perspective: 800px;
+      pointer-events: auto;
+      cursor: pointer;
+      transition: transform 0.5s cubic-bezier(0.23,1,0.32,1), opacity 1.2s ease, filter 1.2s ease;
+      animation: float 5s ease-in-out infinite;
+    }
+
+    .note-card:nth-child(1) { animation-delay: 0s;   }
+    .note-card:nth-child(2) { animation-delay: 0.7s; }
+    .note-card:nth-child(3) { animation-delay: 1.4s; }
+    .note-card:nth-child(4) { animation-delay: 2.1s; }
+    .note-card:nth-child(5) { animation-delay: 2.8s; }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50%      { transform: translateY(-8px); }
+    }
+
+    .note-card:hover { transform: scale(1.04); }
+
+    .note-card.vanish {
+      opacity: 0;
+      filter: blur(15px) brightness(3);
+      transform: scale(0.3) translateY(80px) rotate(20deg);
+      pointer-events: none;
+    }
+
+    .flipper {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transition: transform 0.8s cubic-bezier(0.23,1,0.32,1);
+      transform-style: preserve-3d;
+      border-radius: 14px;
+      box-shadow: 0 14px 32px rgba(0,0,0,0.55), 0 4px 12px rgba(0,0,0,0.4);
+    }
+
+    .note-card.flipped .flipper { transform: rotateY(180deg); }
+
+    .front, .back {
+      position: absolute;
+      inset: 0;
+      backface-visibility: hidden;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      text-align: center;
+      font-size: 1.1rem;
+      line-height: 1.5;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      word-break: break-word;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12);
+    }
+
+    .front {
+      background: linear-gradient(145deg, #e9e7e2, #d4d1ca);
+      color: #35322e;
+      border: 1px solid #b5afa5;
+      font-family: 'Ma Shan Zheng', 'KaiTi', '楷体', cursive;
+    }
+
+    .back {
+      transform: rotateY(180deg);
+      color: #1a1a1a;
+      border: 1px solid rgba(255,255,255,0.3);
+      font-weight: 600;
+    }
+
+    .note-card:nth-child(1) .back { background: linear-gradient(145deg,#f9d56e,#e0aa38); }
+    .note-card:nth-child(2) .back { background: linear-gradient(145deg,#a8d8ea,#6baec7); }
+    .note-card:nth-child(3) .back { background: linear-gradient(145deg,#ffb6b9,#e08287); }
+    .note-card:nth-child(4) .back { background: linear-gradient(145deg,#b5e6b5,#6bbd6b); }
+    .note-card:nth-child(5) .back { background: linear-gradient(145deg,#d4b8e0,#a87cbd); }
+
+    /* ========== 文字 ========== */
+    .title {
+      position: absolute;
+      top: 6.5%;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 3.6rem;
+      font-weight: 700;
+      color: #f3f1ec;
+      text-shadow: 0 4px 30px rgba(0,0,0,0.85);
+      letter-spacing: 10px;
+      z-index: 20;
+      white-space: nowrap;
+      font-family: 'Ma Shan Zheng','KaiTi',cursive;
+      transition: opacity 0.8s ease, transform 0.8s ease;
+      pointer-events: none;
+    }
+    .title.hidden { opacity: 0; transform: translateX(-50%) translateY(-30px); }
+
+    .hint {
+      position: absolute;
+      bottom: 20%;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 1rem;
+      color: rgba(180,180,180,0.5);
+      letter-spacing: 3px;
+      z-index: 20;
+      transition: opacity 0.8s ease;
+      pointer-events: none;
+      font-family: 'KaiTi',cursive;
+    }
+    .hint.hidden { opacity: 0; }
+
+    /* ========== 场景二：结尾 ========== */
+    .scene-ending {
+      position: absolute;
+      inset: 0;
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 2s ease;
+      background: radial-gradient(ellipse at 50% 30%, #0a0f1a 0%, #03060b 80%);
+    }
+
+    .scene-ending.show { opacity: 1; pointer-events: auto; }
+
+    .star-field {
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(1.5px 1.5px at 12% 18%, #fff, rgba(0,0,0,0)),
+        radial-gradient(1.5px 1.5px at 28% 42%, #fff, rgba(0,0,0,0)),
+        radial-gradient(2px 2px at 45% 12%, #fff, rgba(0,0,0,0)),
+        radial-gradient(1px 1px at 62% 55%, #fff, rgba(0,0,0,0)),
+        radial-gradient(1.5px 1.5px at 78% 25%, #fff, rgba(0,0,0,0)),
+        radial-gradient(2px 2px at 88% 68%, #fff, rgba(0,0,0,0)),
+        radial-gradient(1px 1px at 8% 75%, #fff, rgba(0,0,0,0)),
+        radial-gradient(1.5px 1.5px at 35% 88%, #fff, rgba(0,0,0,0)),
+        radial-gradient(1px 1px at 55% 78%, #fff, rgba(0,0,0,0)),
+        radial-gradient(1.5px 1.5px at 72% 92%, #fff, rgba(0,0,0,0));
+      background-size: 200px 200px;
+      opacity: 0.9;
+      animation: twinkle 6s ease-in-out infinite alternate;
+    }
+
+    @keyframes twinkle { 0% { opacity: 0.7; } 100% { opacity: 1; } }
+
+    .ending-grass {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 32%;
+      background: linear-gradient(to top, #0d2b1a 0%, #1f4a2e 45%, #3a7d44 80%, rgba(135,195,143,0.6) 100%);
+      border-radius: 60% 60% 0 0 / 18% 18% 0 0;
+      z-index: 1;
+      opacity: 0.7;
+    }
+
+    .ending-text {
+      position: relative;
+      z-index: 5;
+      font-size: 3.4rem;
+      font-weight: 700;
+      color: #fff;
+      text-shadow: 0 4px 40px rgba(0,0,0,0.9), 0 0 100px rgba(200,220,255,0.35);
+      letter-spacing: 8px;
+      text-align: center;
+      line-height: 1.6;
+      font-family: 'Ma Shan Zheng','KaiTi',cursive;
+      opacity: 0;
+      transform: scale(0.94);
+      transition: opacity 2s ease 0.5s, transform 2s ease 0.5s;
+    }
+
+    .scene-ending.show .ending-text { opacity: 1; transform: scale(1); }
+
+    .footer-text {
+      position: relative;
+      z-index: 5;
+      margin-top: 40px;
+      font-size: 1.5rem;
+      color: rgba(220,220,210,0.85);
+      letter-spacing: 5px;
+      font-family: 'Ma Shan Zheng','KaiTi',cursive;
+      opacity: 0;
+      transition: opacity 2s ease 1.2s;
+    }
+
+    .scene-ending.show .footer-text { opacity: 0.85; }
+
+    @media (max-width: 1100px) {
+      .title { font-size: 2.8rem; }
+      .ending-text { font-size: 2.6rem; }
+    }
+    @media (max-width: 750px) {
+      .note-card { width: 110px; height: 110px; }
+      .front, .back { font-size: 0.85rem; }
+      .title { font-size: 2rem; }
+      .ending-text { font-size: 1.8rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="canvas" id="canvas">
+    <div class="flash-overlay" id="flashOverlay"></div>
+
+    <!-- 场景一：轨道 -->
+    <div class="scene-track" id="sceneTrack">
+      <div class="bg-layer" id="bgLayer"></div>
+      <div class="title" id="title">人生是轨道，还是旷野？</div>
+
+      <!-- 轨道 -->
+      <div class="track-stage">
+        <div class="track-perspective" id="trackPerspective">
+          <div class="rail left"></div>
+          <div class="rail right"></div>
+          <div class="sleepers"></div>
+          <div class="rail-highlight"></div>
+        </div>
+      </div>
+
+      <!-- 碎片层 -->
+      <div class="debris-layer" id="debrisLayer"></div>
+
+      <!-- 卡牌 -->
+      <div class="cards-field" id="cardsField">
+        <div class="note-card" data-index="0" style="left: 12%; top: 24%;">
+          <div class="flipper">
+            <div class="front">我不敢上台</div>
+            <div class="back">我今天站在了台上</div>
+          </div>
+        </div>
+        <div class="note-card" data-index="1" style="left: 74%; top: 30%;">
+          <div class="flipper">
+            <div class="front">我不行</div>
+            <div class="back">我被看见了</div>
+          </div>
+        </div>
+        <div class="note-card" data-index="2" style="left: 8%; top: 56%;">
+          <div class="flipper">
+            <div class="front">这事不归我管</div>
+            <div class="back">我敢碰新领域</div>
+          </div>
+        </div>
+        <div class="note-card" data-index="3" style="left: 78%; top: 60%;">
+          <div class="flipper">
+            <div class="front">我不会代码</div>
+            <div class="back">我做了个小网页</div>
+          </div>
+        </div>
+        <div class="note-card" data-index="4" style="left: 44%; top: 68%;">
+          <div class="flipper">
+            <div class="front">我不敢参加比赛</div>
+            <div class="back">我提交了一个作品</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hint" id="hint">点击散落在轨道旁的便签，翻个面</div>
+    </div>
+
+    <!-- 场景二：结尾 -->
+    <div class="scene-ending" id="sceneEnding">
+      <div class="star-field"></div>
+      <div class="ending-grass"></div>
+      <div class="ending-text">那些'我不会'，翻过来，都是'我试过'</div>
+      <div class="footer-text">只要开了口，你就有分</div>
+    </div>
+
+  </div>
+
+  <script>
+    (function() {
+      const noteCards       = document.querySelectorAll('.note-card');
+      const sceneTrack      = document.getElementById('sceneTrack');
+      const sceneEnding     = document.getElementById('sceneEnding');
+      const trackPerspective= document.getElementById('trackPerspective');
+      const debrisLayer     = document.getElementById('debrisLayer');
+      const bgLayer         = document.getElementById('bgLayer');
+      const title           = document.getElementById('title');
+      const hint            = document.getElementById('hint');
+      const canvas          = document.getElementById('canvas');
+      const flashOverlay    = document.getElementById('flashOverlay');
+
+      const totalNotes = noteCards.length;
+      let flippedCount = 0;
+      let allFlipped = false;
+      const flippedStatus = new Array(totalNotes).fill(false);
+
+      // 点击翻转
+      noteCards.forEach((card, index) => {
+        card.addEventListener('click', function(e) {
+          e.stopPropagation();
+          if (flippedStatus[index]) return;
+
+          this.classList.add('flipped');
+          flippedStatus[index] = true;
+          flippedCount++;
+
+          // 背景提亮
+          if (flippedCount < totalNotes) {
+            const p = flippedCount / totalNotes;
+            const r = Math.round(20 + (42 - 20) * p);
+            const g = Math.round(26 + (48 - 26) * p);
+            const b = Math.round(38 + (69 - 38) * p);
+            bgLayer.style.background = `radial-gradient(ellipse at 50% 35%, rgb(${r},${g},${b}) 0%, #080b10 75%)`;
+          }
+
+          // 最后一张，直接引爆
+          if (flippedCount === totalNotes && !allFlipped) {
+            allFlipped = true;
+            // 给翻牌动画留一点点时间（300ms），然后直接炸
+            setTimeout(explodeTrack, 300); 
+          }
+        });
+      });
+
+      // 核心：爆炸逻辑
+      function explodeTrack() {
+        // 1. 屏幕闪白与震动
+        flashOverlay.classList.add('active');
+        canvas.classList.add('shake');
+
+        // 2. 瞬间隐藏原轨道（不要任何过渡，直接消失）
+        trackPerspective.style.display = 'none';
+        
+        // 3. 背景瞬间黑暗，凸显玻璃反光
+        bgLayer.style.background = 'radial-gradient(ellipse at 50% 35%, #151515 0%, #000000 80%)';
+
+        // 4. 隐藏标题提示
+        title.classList.add('hidden');
+        hint.classList.add('hidden');
+
+        // 5. 卡牌瞬间被冲击波“震碎”淡出
+        noteCards.forEach((card, i) => {
+          setTimeout(() => {
+            card.classList.add('vanish');
+          }, i * 50);
+        });
+
+        // 6. 获取爆炸中心点（轨道中下部）
+        const canvasRect = canvas.getBoundingClientRect();
+        const trackRect = document.querySelector('.track-stage').getBoundingClientRect();
+        
+        const centerX = trackRect.left + trackRect.width / 2 - canvasRect.left;
+        const centerY = canvasRect.height - (trackRect.bottom - canvasRect.top) - (trackRect.height * 0.4);
+
+        // === 生成锋利的多边形玻璃碎片 ===
+        const shardCount = 120; // 大碎片数量
+        for (let i = 0; i < shardCount; i++) {
+          const shard = document.createElement('div');
+          shard.className = 'glass-shard';
+
+          // 随机生成3-5个顶点的多边形切割
+          const vertices = 3 + Math.floor(Math.random() * 3);
+          let clipPath = 'polygon(';
+          for (let v = 0; v < vertices; v++) {
+            const angle = (v / vertices) * Math.PI * 2 + Math.random() * 0.8;
+            const radius = 20 + Math.random() * 50;
+            const x = 50 + Math.cos(angle) * radius;
+            const y = 50 + Math.sin(angle) * radius;
+            clipPath += `${x}% ${y}%${v === vertices - 1 ? '' : ', '}`;
+          }
+          clipPath += ')';
+          shard.style.clipPath = clipPath;
+
+          // 尺寸差异拉大，有大块有中块
+          const size = 20 + Math.random() * 90;
+          shard.style.width = size + 'px';
+          shard.style.height = size + 'px';
+
+          // 初始位置集中在轨道区域
+          const offsetX = (Math.random() - 0.5) * 200;
+          const offsetY = (Math.random() - 0.5) * 500;
+          shard.style.left = (centerX + offsetX) + 'px';
+          shard.style.top  = (centerY + offsetY) + 'px';
+
+          // 高速物理参数（极快炸开）
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 600 + Math.random() * 1000; // 速度极快
+          const tx = Math.cos(angle) * speed;
+          const ty = Math.sin(angle) * speed - 150;
+          const tz = (Math.random() - 0.5) * 800; // 强烈的Z轴纵深感
+          const rot = (Math.random() - 0.5) * 1440; // 极速旋转
+
+          shard.style.setProperty('--tx', tx + 'px');
+          shard.style.setProperty('--ty', ty + 'px');
+          shard.style.setProperty('--tz', tz + 'px');
+          shard.style.setProperty('--rot', rot + 'deg');
+          
+          // 动画时长 1s ~ 1.8s，延迟极短（0~0.1s），制造出“同时炸开”的错觉
+          shard.style.setProperty('--duration', (1.0 + Math.random() * 0.8) + 's');
+          shard.style.setProperty('--delay', (Math.random() * 0.1) + 's');
+
+          debrisLayer.appendChild(shard);
+          requestAnimationFrame(() => { shard.classList.add('fly'); });
+        }
+
+        // === 生成细小的玻璃粉尘（增强爆炸体积感） ===
+        const dustCount = 200;
+        for (let i = 0; i < dustCount; i++) {
+          const dust = document.createElement('div');
+          dust.className = 'dust-particle';
+          
+          const size = 1 + Math.random() * 4;
+          dust.style.width = size + 'px';
+          dust.style.height = size + 'px';
+          
+          dust.style.left = (centerX + (Math.random() - 0.5) * 120) + 'px';
+          dust.style.top  = (centerY + (Math.random() - 0.5) * 400) + 'px';
+
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 800 + Math.random() * 1200;
+          const tx = Math.cos(angle) * speed;
+          const ty = Math.sin(angle) * speed;
+          const tz = (Math.random() - 0.5) * 600;
+
+          dust.style.setProperty('--tx', tx + 'px');
+          dust.style.setProperty('--ty', ty + 'px');
+          dust.style.setProperty('--tz', tz + 'px');
+          dust.style.setProperty('--duration', (0.8 + Math.random() * 0.6) + 's');
+          dust.style.setProperty('--delay', (Math.random() * 0.1) + 's');
+
+          debrisLayer.appendChild(dust);
+          requestAnimationFrame(() => { dust.classList.add('fly'); });
+        }
+
+        // 7. 等待爆炸动画到达最高潮，场景淡出
+        setTimeout(() => {
+          sceneTrack.style.transition = 'opacity 1.5s ease';
+          sceneTrack.classList.add('fade-out');
+        }, 1500);
+
+        // 8. 星空页面浮现
+        setTimeout(() => {
+          sceneEnding.classList.add('show');
+        }, 2200);
+      }
+
+    })();
+  </script>
+</body>
+</html>
